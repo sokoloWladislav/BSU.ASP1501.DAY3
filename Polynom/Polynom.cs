@@ -3,105 +3,90 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Configuration;
 
 namespace Polynom
 {
-    public class Polynom
+    public sealed class Polynom
     {
-        private double[] coefs;
+        public static double epsilon;
+        private double[] _coefs = {};
+    /*static Polynom()
+    {
+        epsilon = double.Parse(System.Configuration.ConfigurationManager.AppSettings["epsilon"]);
+    }*/
 
-        public int Power{ get; private set;}
-        public double[] Coefs
-        {
-            get
-            {
-                return coefs;
-            }
-            set
-            {
-                int k = 0;
-                for (int i = value.Length - 1; i >= 0; --i)
-                {
-                    if (value[i] != 0)
-                        break;
-                    else
-                        ++k;
-                }
-                if (k == value.Length)
-                    coefs = new double[1] { 0 };
-                else
-                {
-                    coefs = new double[value.Length - k];
-                    for (int i = 0; i < value.Length - k; ++i)
-                        coefs[i] = value[i];
-                }
-            }
-        }
-
-        public Polynom(double[] coefs)
+        public Polynom(params double[] coefs)
         {
             if (coefs == null)
-                Coefs = new double[1] { 0 };
+                _coefs = new double[1] {0};
             else
-                Coefs = coefs;
-            Power = Coefs.Length - 1;
+            {
+                _coefs = new double[coefs.Length];
+                Array.Copy(coefs, _coefs, coefs.Length);
+                CutZeros(ref _coefs);
+            }
         }
 
         public override bool Equals(object obj)
         {
-            if (obj == null)
-                return false;
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
 
-            Polynom p = obj as Polynom;
-            if (p == null)
-                return false;
-            
-            if (Coefs.Length != p.Coefs.Length)
-                return false;
+            if (obj.GetType() != this.GetType()) return false;
 
-            int k = 0;
-            for (int i = 0; i < Coefs.Length; ++i)
-                if (Coefs[i] == p.Coefs[i])
-                    ++k;
-
-            return (k == Coefs.Length);
+            return this.Equals(obj);
         }
 
         public bool Equals(Polynom p)
         {
-            if (p == null)
+            if (ReferenceEquals(null, p)) return false;
+            if (ReferenceEquals(this, p)) return true;
+
+            if (_coefs.Length != p._coefs.Length)
                 return false;
 
-            if (Coefs.Length != p.Coefs.Length)
-                return false;
+            for (int i = 0; i < _coefs.Length; ++i)
+                if (_coefs[i] != p._coefs[i])
+                    return false;
 
-            int k = 0;
-            for (int i = 0; i < Coefs.Length; ++i)
-                if (Coefs[i] == p.Coefs[i])
-                    ++k;
-
-            return (k == Coefs.Length);
-
+            return true;
         }
 
         public override int GetHashCode()
         {
             int hashCode = 13;
-            for (int i = 0; i < Coefs.Length; ++i)
-                hashCode += (int)Coefs[i];
-            return (hashCode * (Power + 121)) % 235;
+            for (int i = 0; i < _coefs.Length; ++i)
+                hashCode += (int)_coefs[i];
+            return (hashCode * (_coefs.Length + 121)) % 237;
+        }
+
+        public static bool operator ==(Polynom lhs, Polynom rhs)
+        {
+            if (ReferenceEquals(lhs, rhs)) return true;
+            if (ReferenceEquals(null, lhs)) return false;
+
+            return lhs.Equals(rhs);
+        }
+
+        public static bool operator !=(Polynom lhs, Polynom rhs)
+        {
+            if (ReferenceEquals(lhs, rhs)) return false;
+            if (ReferenceEquals(null, lhs)) return true;
+
+            return !lhs.Equals(rhs);
         }
 
         public override string ToString()
         {
             string result = "";
-            for (int i = Coefs.Length - 1; i >= 0; --i)
+            for (int i = _coefs.Length - 1; i >= 0; --i)
             {
-                if (Coefs[i] == 0)
+                if (_coefs[i] < epsilon)
                     continue;
-                if (i != Coefs.Length - 1)
+                if (i != _coefs.Length - 1)
                     result += " + ";
-                result += Coefs[i];
+                result += _coefs[i];
                 if (i == 0)
                     continue;
                 result += "x";
@@ -112,121 +97,72 @@ namespace Polynom
                 return result;
         }
 
-        public static Polynom operator +(Polynom p)
-        {
-            return new Polynom(p.Coefs);
-        }
-
-        public static Polynom operator ++(Polynom p)
-        {
-            Polynom result = new Polynom(p.Coefs);
-            for (int i = 0; i < result.Coefs.Length; ++i)
-                ++result.Coefs[i];
-            return result;
-        }
-
         public static Polynom operator +(Polynom p, double num)
         {
-            Polynom result = new Polynom(p.Coefs);
-            for (int i = 0; i < result.Coefs.Length; ++i)
-                result.Coefs[i] += num;
-            return result;
+            double[] result = new double[p._coefs.Length];
+            Array.Copy(p._coefs, result, p._coefs.Length);
+            for (int i = 0; i < result.Length; ++i)
+                result[i] += num;
+            return new Polynom(result);
         }
 
-        public static Polynom operator +(Polynom first, Polynom second)
+        public static Polynom operator +(Polynom lhs, Polynom rhs)
         {
-            double[] temp;
-            if(first.Coefs.Length > second.Coefs.Length)
+            double[] temp = new double[Math.Max(lhs._coefs.Length, rhs._coefs.Length)];
+            if(lhs._coefs.Length > rhs._coefs.Length)
             {
-                temp = new double[first.Coefs.Length];
-                for(int i = 0; i < first.Coefs.Length; ++i)
-                {
-                    temp[i] = first.Coefs[i];
-                    if(i < second.Coefs.Length)
-                        temp[i] += second.Coefs[i];
-                }
+                Array.Copy(lhs._coefs, temp, temp.Length);
+                for(int i = 0; i < rhs._coefs.Length; ++i)
+                        temp[i] += rhs._coefs[i];
             }
             else
             {
-                temp = new double[second.Coefs.Length];
-                for (int i = 0; i < second.Coefs.Length; ++i)
-                {
-                    temp[i] = second.Coefs[i];
-                    if (i < first.Coefs.Length)
-                        temp[i] += first.Coefs[i];
-                }
+                Array.Copy(rhs._coefs, temp, temp.Length);
+                for (int i = 0; i < lhs._coefs.Length; ++i)
+                    temp[i] += lhs._coefs[i];
             }
                 return new Polynom(temp);
         }
 
         public static Polynom operator -(Polynom p)
         {
-            Polynom result = new Polynom(p.Coefs);
-            for (int i = 0; i < result.Coefs.Length; ++i)
-                result.Coefs[i] *= -1;
-            return result;
-        }
-
-        public static Polynom operator --(Polynom p)
-        {
-            Polynom result = new Polynom(p.Coefs);
-            for (int i = 0; i < result.Coefs.Length; ++i)
-                --result.Coefs[i];
-            return result;
+            return p * (-1);
         }
 
         public static Polynom operator -(Polynom p, double num)
         {
-            Polynom result = new Polynom(p.Coefs);
-            for (int i = 0; i < result.Coefs.Length; ++i)
-                result.Coefs[i] -= num;
-            return result;
+            return p + (-num);
         }
 
-        public static Polynom operator -(Polynom first, Polynom second)
+        public static Polynom operator -(Polynom lhs, Polynom rhs)
         {
-            double[] temp;
-            if (first.Coefs.Length > second.Coefs.Length)
-            {
-                temp = new double[first.Coefs.Length];
-                for (int i = 0; i < first.Coefs.Length; ++i)
-                {
-                    temp[i] = first.Coefs[i];
-                    if (i < second.Coefs.Length)
-                        temp[i] -= second.Coefs[i];
-                }
-            }
-            else
-            {
-                temp = new double[second.Coefs.Length];
-                for (int i = 0; i < second.Coefs.Length; ++i)
-                {
-                    temp[i] = second.Coefs[i];
-                    if (i < first.Coefs.Length)
-                        temp[i] -= first.Coefs[i];
-                }
-            }
-            return new Polynom(temp);
+            return lhs + (-rhs);
         }
 
         public static Polynom operator *(Polynom p, double num)
         {
-            Polynom result = new Polynom(p.Coefs);
-            for (int i = 0; i < result.Coefs.Length; ++i)
-                result.Coefs[i] *= num;
-            return result;
+            double[] result = new double[p._coefs.Length];
+            Array.Copy(p._coefs, result, result.Length);
+            for (int i = 0; i < result.Length; ++i)
+                result[i] *= num;
+            return new Polynom(result);
         }
 
-        public static Polynom operator *(Polynom p, Polynom q)
+        public static Polynom operator *(Polynom lhs, Polynom rhs)
         {
-            double[] result = new double[p.Coefs.Length + q.Coefs.Length - 1];
-            if (p.Coefs.Length > q.Coefs.Length)
-            {
-                for (int i = 0; i < p.Coefs.Length; ++i)
-                    for (int j = 0; j < q.Coefs.Length; ++j )
-                        result[i + j] += p.Coefs[i] * q.Coefs[j];
-            }
+            double[] result = new double[lhs._coefs.Length + rhs._coefs.Length - 1];
+                for (int i = 0; i < lhs._coefs.Length; ++i)
+                    for (int j = 0; j < rhs._coefs.Length; ++j )
+                        result[i + j] += lhs._coefs[i] * rhs._coefs[j];
             return new Polynom(result);
+        }
+
+        private static void CutZeros(ref double[] array)
+        {
+            int k = 0;
+            while (Math.Abs(array[array.Length - 1 - k])  < epsilon && k != array.Length - 1)
+                ++k;
+            Array.Resize(ref array, array.Length - k);
         }
     }
 }
